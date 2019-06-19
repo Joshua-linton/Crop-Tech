@@ -1,2 +1,124 @@
-# Crop-Tech
-Crop Tech is a building automation for agriculture and indoor plants, called as smart agriculture. It involves the control and automation of Humidity sensor, Soil sensor, LDR sensor (photo sensor) and Temperature sensor. WIFI is often used for remote monitoring and control. Crop Tech, when remotely monitored and controlled via the internet, are important constituent of the plant. Modern system generally consist of switches and sensors connected to a central hub sometime called a “gateway” from which the system is controlled with a user interface that interacts with either wall mount terminal, mobile phone software, tablet computer or web interface,often but not always via internet cloud services. There are some benefits  Increased production  Water conservation  Real_time data and production Lower operation cost Remote monitoring
+#define BLYNK_PRINT Serial
+
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#include <time.h>
+
+// 4051 IC inputs
+#define A 12 // D6 - NodeMCU
+#define B 13 // D7 - NodeMCU
+#define C 14 // D5 - NodeMCU
+
+#define D1 5 // Connected to Relay D1
+#define D2 4 // Connected to Relay D2
+#define D3 0 // Connected to Relay D3
+#define D4 2 // Connected to Relay D4
+
+// You should get Auth Token in the Blynk App.
+// Go to the Project Settings (nut icon).
+char auth[] = "9255aa9b47b641109dd904cdbf3591f7";
+
+// Your WiFi credentials.
+// Set password to "" for open networks.
+char ssid[] = "Joshua Linton";
+char pass[] = "1234567890";
+
+WidgetLED led1(V0);
+WidgetLED led2(V4);
+
+BlynkTimer moistureTimer;
+BlynkTimer tempTimer;
+BlynkTimer photoSensorTimer;
+
+int timezone = 5 * 3600;
+int dst = 0;
+
+void MoistureSensor () {
+  ChangeAnalogInput (LOW, LOW, HIGH);
+  int sensorValue = analogRead(A0);
+  int moisturepercent = map(sensorValue, 200, 1024, 100, 0);
+  Blynk.virtualWrite(V1, moisturepercent); //sending to Blynk
+  
+  if (moisturepercent < 30) {
+    led1.on();
+    digitalWrite (D1, LOW);
+  }else {
+    led1.off();
+    digitalWrite (D1, HIGH);
+  }
+}
+
+void RoomTemp () {
+  ChangeAnalogInput (LOW, LOW, LOW);
+  int sensorValue = analogRead(A0);
+  Serial.println("Temp Sensor:" + sensorValue);
+  float millivolts = (sensorValue/1024.0) * 3300; //3300 is the voltage provided by NodeMCU
+  float celsius = millivolts/10;
+  Blynk.virtualWrite(V2, celsius); //sending to Blynk
+}
+
+void PhotoSensor () {
+  ChangeAnalogInput (LOW, HIGH, LOW);
+  int sensorValue = analogRead(A0);
+  int luxValue = map (sensorValue, 0, 1024, 0, 10000); 
+  Blynk.virtualWrite (V3, luxValue);
+
+  time_t now = time(nullptr);
+  struct tm* p_tm = localtime(&now);
+
+  // if time is between 10 AM to 5PM and the lux is less than 1500, make sure the plant gets light.
+  if (luxValue < 1500 && p_tm->tm_hour > 10 && p_tm->tm_hour <21) {
+    led2.on();
+    digitalWrite (D2, LOW);
+  } else {
+    led2.off();
+    digitalWrite (D2, HIGH);
+  }
+}
+
+void ChangeAnalogInput(int c, int b, int a) {
+  digitalWrite(A, a);
+  digitalWrite(B, b);
+  digitalWrite(C, c);
+}
+
+void setup()
+{
+  // Debug console
+  Serial.begin(9600);
+
+  pinMode(A, OUTPUT);
+  pinMode(B, OUTPUT);     
+  pinMode(C, OUTPUT);
+
+  pinMode (D1, OUTPUT);
+  pinMode (D2, OUTPUT);
+  pinMode (D3, OUTPUT);
+  pinMode (D4, OUTPUT);
+
+  Blynk.begin(auth, ssid, pass);
+  // You can also specify server:
+  //Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 80);
+  //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8080);
+
+  moistureTimer.setInterval(1000L, MoistureSensor);
+  tempTimer.setInterval(1000L, RoomTemp);
+  photoSensorTimer.setInterval (1000L, PhotoSensor);
+
+  configTime(timezone, dst, "pool.ntp.org","time.nist.gov");
+  Serial.println("\nWaiting for Internet time");
+
+  while(!time(nullptr)){
+     Serial.print("*");
+     delay(1000);
+  }
+  Serial.println("\nTime response....OK");   
+}
+
+void loop()
+{
+  Blynk.run();
+  moistureTimer.run();
+  tempTimer.run();
+  photoSensorTimer.run();
+}
