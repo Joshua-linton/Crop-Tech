@@ -21,7 +21,9 @@ char auth[] = "9255aa9b47b641109dd904cdbf3591f7";
 // Your WiFi credentials.
 // Set password to "" for open networks.
 char ssid[] = "Joshua Linton";
+// wifi name.
 char pass[] = "1234567890";
+// wifi password.
 
 WidgetLED led1(V0);
 WidgetLED led2(V4);
